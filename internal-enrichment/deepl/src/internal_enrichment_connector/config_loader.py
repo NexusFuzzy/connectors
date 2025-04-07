@@ -39,19 +39,19 @@ class ConfigConnector:
 
         # Connector extra parameters
         self.api_key = get_config_variable(
-            "CONNECTOR_DEEPL_API_KEY",
+            "CONNECTOR_API_KEY",
             ["connector_deepl", "api_key"],
             self.load,
         )
 
         self.max_tlp = get_config_variable(
-            "CONNECTOR_DEEPL_MAX_TLP",
+            "CONNECTOR_MAX_TLP",
             ["connector_deepl", "max_tlp"],
             self.load,
         )
 
         self.target_language = get_config_variable(
-            "CONNECTOR_DEEPL_TARGET_LANGUAGE",
+            "CONNECTOR_TARGET_LANGUAGE",
             ["connector_deepl", "target_language"],
             self.load,
         )

@@ -14,7 +14,7 @@ services:
       - CONNECTOR_AUTO=true
 
       # Connector's custom execution parameters
-      - CONNECTOR_DEEPL_API_KEY=CHANGEME
+      - CONNECTOR_API_KEY=CHANGEME
       - CONNECTOR_MAX_TLP=TLP:CLEAR # Available values: TLP:CLEAR, TLP:WHITE, TLP:GREEN, TLP:AMBER, TLP:AMBER+STRICT, TLP:RED
       - CONNECTOR_TARGET_LANGUAGE=EN
       # Add proxy parameters below if needed

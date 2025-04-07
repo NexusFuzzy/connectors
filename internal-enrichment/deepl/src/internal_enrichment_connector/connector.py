@@ -6,7 +6,7 @@ from .converter_to_stix import ConverterToStix
 import requests
 import deepl
 import os
-
+import json
 
 class ConnectorDeepl:
     """
@@ -63,7 +63,38 @@ class ConnectorDeepl:
 
     def get_files_from_report(self, report_id):
         report = self.helper.api.report.read(id=report_id, withFiles=True)
+
+        import_queue = []
+        for i in report["externalReferences"]:
+           for obj in i["importFiles"]: 
+               import_queue.append(obj)
+
         for i in report["importFiles"]:
+            import_queue.append(i)
+
+        for obj in import_queue:
+             self.helper.connector_logger.info("File path " + obj["id"])
+
+        # The "uploaded files" of a report
+        for i in import_queue:
+            file_mimetype = i["metaData"]["mimetype"]
+            # Deepl relies on a correct file extension since it fails if we
+            # upload files with an extension. This is why we check if it ends
+            # with a supported file extenstion. If not, we add the extension
+            # according to its mimetype
+            if not i["name"].endswith((".pdf", ".html", ".txt", ".md")):
+                match file_mimetype:
+                    case "application/pdf":
+                        i["name"] = i["name"] + ".pdf"
+                    case "text/plain":
+                        i["name"] = i["name"] + ".txt"
+
+            # Due to some obscure Deepl limitations we are not allowed to translate
+            # markdown files which is why we rename them to .txt instead of .md
+            if i["name"].endswith(".md"):
+                i["name"] = ".txt".join(i["name"].rsplit(".md", 1))
+                self.helper.connector_logger.info("Changed filename to " + i["name"] + " since Markdown files (.md) are not allowed for translation")
+
             # When a file was already translated we do not want to do it again
             if i["name"].startswith("translated_"):
                 self.helper.connector_logger.info(
@@ -72,14 +103,14 @@ class ConnectorDeepl:
                     + " indicates that it has already been translated, therefor skipping it"
                 )
                 continue
+
             headers = {"Authorization": "Bearer " + self.config.opencti_token}
             url = self.config.opencti_url + "/storage/get/" + str(i["id"])
             r = requests.get(url, headers=headers, stream=True, verify=False)
             if r.status_code == 200:
-                output_filepath = os.getcwd() + "/reports/" + i["name"]
+                output_filepath = "./reports/" + i["name"]
                 translated_filepath = (
-                    os.getcwd()
-                    + "/reports/translated_"
+                    "./reports/translated_"
                     + self.config.target_language
                     + "_"
                     + i["name"]
@@ -136,14 +167,17 @@ class ConnectorDeepl:
                         not_supported = True
 
                     if not not_supported:
-                        self.deepl_client.translate_document_from_filepath(
-                            output_filepath,
-                            translated_filepath,
-                            target_lang=self.config.target_language,
-                        )
-                        self.helper.api.stix_domain_object.add_file(
-                            id=report_id, file_name=translated_filepath
-                        )
+                        try:
+                            self.deepl_client.translate_document_from_filepath(
+                                output_filepath,
+                                translated_filepath,
+                                target_lang=self.config.target_language,
+                            )
+                            self.helper.api.stix_domain_object.add_file(
+                                id=report_id, file_name=translated_filepath
+                            )
+                        except Exception as ex:
+                            self.helper.connector_logger.error("Error while translating file " + output_filepath + " due to error with Deepl: " + str(ex))
                     else:
                         self.helper.connector_logger.info(
                             "Downloaded report "
@@ -157,7 +191,7 @@ class ConnectorDeepl:
                         "Error while translating report: " + str(ex)
                     )
                 finally:
-                    self.helper.connector_logger.error("Cleaning up temporary reports")
+                    self.helper.connector_logger.info("Cleaning up temporary reports")
                     if os.path.exists(output_filepath):
                         os.remove(output_filepath)
                     if os.path.exists(translated_filepath):
